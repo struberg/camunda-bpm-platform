@@ -291,22 +291,46 @@ public abstract class CmmnExecution extends CoreExecution implements CmmnCaseIns
   protected abstract CmmnExecution newCaseExecution();
 
   public void enable() {
+    if (isCaseInstanceExecution()) {
+      String message = "Cannot perform transition: it is not possible to enable a case instance.";
+      throw new ProcessEngineException(message);
+    }
+
     transition(AVAILABLE, ENABLED, CASE_EXECUTION_NOTIFY_LISTENER_ENABLE);
   }
 
   public void disable() {
+    if (isCaseInstanceExecution()) {
+      String message = "Cannot perform transition: it is not possible to disable a case instance.";
+      throw new ProcessEngineException(message);
+    }
+
     transition(ENABLED, DISABLED, CASE_EXECUTION_NOTIFY_LISTENER_DISABLE);
   }
 
   public void reenable() {
+    if (isCaseInstanceExecution()) {
+      String message = "Cannot perform transition: it is not possible to re-enable a case instance.";
+      throw new ProcessEngineException(message);
+    }
+
     transition(DISABLED, ENABLED, CASE_EXECUTION_NOTIFY_LISTENER_RE_ENABLE);
   }
 
   public void manualStart() {
+    if (isCaseInstanceExecution()) {
+      String message = "Cannot perform transition: it is not possible to start a case instance manually.";
+      throw new ProcessEngineException(message);
+    }
+
     transition(ENABLED, ACTIVE, CASE_EXECUTION_NOTIFY_LISTENER_MANUAL_START);
   }
 
   public void start() {
+    if (isCaseInstanceExecution()) {
+      String message = "Cannot perform transition: it is not possible to start a case instance.";
+      throw new ProcessEngineException(message);
+    }
     transition(AVAILABLE, ACTIVE, CASE_EXECUTION_NOTIFY_LISTENER_START);
   }
 
@@ -314,16 +338,23 @@ public abstract class CmmnExecution extends CoreExecution implements CmmnCaseIns
     transition(ACTIVE, COMPLETED, CASE_EXECUTION_NOTIFY_LISTENER_COMPLETE);
   }
 
-  protected void transition(CaseExecutionState from, CaseExecutionState to, CmmnAtomicOperation nextOperation) {
-    // is this execution in the expected state
+  protected void transition(CaseExecutionState from, CaseExecutionState target, CmmnAtomicOperation nextOperation) {
+    CaseExecutionState currentFrom = CaseExecutionState.CASE_EXECUTION_STATES.get(currentState);
+
+    // is this case execution already in the target state
+    if (currentState == target.getStateCode()) {
+      String message = "Cannot perform transition: the case execution is already in the state '"+currentFrom+"'.";
+      throw new ProcessEngineException(message);
+    } else
+    // is this case execution in the expected state
     if (currentState != from.getStateCode()) {
       // if not throw an exception
-      // TODO: provide proper exception message
-      throw new ProcessEngineException();
+      String message = "Cannot perform transition to the state '"+target+"': the expected current state is '"+from+"', but was '"+currentFrom+"'.";
+      throw new ProcessEngineException(message);
     }
 
     // perform transition: set the new state
-    setCurrentState(to);
+    setCurrentState(target);
 
     // if a next operation is provided, execute it.
     if (nextOperation != null) {

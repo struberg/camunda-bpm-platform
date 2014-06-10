@@ -12,12 +12,59 @@
  */
 package org.camunda.bpm.engine.impl.bpmn.parser;
 
+import java.io.InputStream;
+import java.io.StringReader;
+import java.net.URL;
+import java.text.StringCharacterIterator;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.delegate.ExecutionListener;
 import org.camunda.bpm.engine.delegate.Expression;
 import org.camunda.bpm.engine.delegate.TaskListener;
 import org.camunda.bpm.engine.impl.Condition;
-import org.camunda.bpm.engine.impl.bpmn.behavior.*;
+import org.camunda.bpm.engine.impl.bpmn.behavior.AbstractBpmnActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.BoundaryEventActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.CallActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.CancelBoundaryEventActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.CancelEndEventActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.ErrorEndEventActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.EventBasedGatewayActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.EventSubProcessStartEventActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.ExclusiveGatewayActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.InclusiveGatewayActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.IntermediateCatchEventActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.IntermediateCatchLinkEventActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.IntermediateThrowCompensationEventActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.IntermediateThrowNoneEventActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.IntermediateThrowSignalEventActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.MailActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.ManualTaskActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.MultiInstanceActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.NoneEndEventActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.NoneStartEventActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.ParallelGatewayActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.ParallelMultiInstanceBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.ReceiveTaskActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.ScriptTaskActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.SequentialMultiInstanceBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.ServiceTaskConnectorActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.ServiceTaskDelegateExpressionActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.ServiceTaskExpressionActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.ShellActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.SignalEndEventActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.SubProcessActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.TaskActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.TerminateEndEventActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.TransactionActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.UserTaskActivityBehavior;
 import org.camunda.bpm.engine.impl.bpmn.helper.ClassDelegate;
 import org.camunda.bpm.engine.impl.bpmn.listener.DelegateExpressionExecutionListener;
 import org.camunda.bpm.engine.impl.bpmn.listener.DelegateExpressionTaskListener;
@@ -41,16 +88,31 @@ import org.camunda.bpm.engine.impl.form.handler.DefaultStartFormHandler;
 import org.camunda.bpm.engine.impl.form.handler.DefaultTaskFormHandler;
 import org.camunda.bpm.engine.impl.form.handler.StartFormHandler;
 import org.camunda.bpm.engine.impl.form.handler.TaskFormHandler;
-import org.camunda.bpm.engine.impl.jobexecutor.*;
+import org.camunda.bpm.engine.impl.jobexecutor.JobDeclaration;
+import org.camunda.bpm.engine.impl.jobexecutor.MessageJobDeclaration;
+import org.camunda.bpm.engine.impl.jobexecutor.TimerCatchIntermediateEventJobHandler;
+import org.camunda.bpm.engine.impl.jobexecutor.TimerDeclarationImpl;
+import org.camunda.bpm.engine.impl.jobexecutor.TimerDeclarationType;
+import org.camunda.bpm.engine.impl.jobexecutor.TimerExecuteNestedActivityJobHandler;
+import org.camunda.bpm.engine.impl.jobexecutor.TimerStartEventJobHandler;
+import org.camunda.bpm.engine.impl.jobexecutor.TimerStartEventSubprocessJobHandler;
 import org.camunda.bpm.engine.impl.persistence.entity.DeploymentEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.JobEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.ProcessDefinitionEntity;
 import org.camunda.bpm.engine.impl.pvm.PvmTransition;
 import org.camunda.bpm.engine.impl.pvm.delegate.ActivityBehavior;
-import org.camunda.bpm.engine.impl.pvm.process.*;
+import org.camunda.bpm.engine.impl.pvm.process.ActivityImpl;
+import org.camunda.bpm.engine.impl.pvm.process.HasDIBounds;
+import org.camunda.bpm.engine.impl.pvm.process.Lane;
+import org.camunda.bpm.engine.impl.pvm.process.LaneSet;
+import org.camunda.bpm.engine.impl.pvm.process.ParticipantProcess;
+import org.camunda.bpm.engine.impl.pvm.process.ProcessDefinitionImpl;
+import org.camunda.bpm.engine.impl.pvm.process.ScopeImpl;
+import org.camunda.bpm.engine.impl.pvm.process.TransitionImpl;
 import org.camunda.bpm.engine.impl.scripting.ExecutableScript;
 import org.camunda.bpm.engine.impl.scripting.ScriptValueProvider;
 import org.camunda.bpm.engine.impl.scripting.engine.ScriptingEngines;
+import org.camunda.bpm.engine.impl.task.TaskDecorator;
 import org.camunda.bpm.engine.impl.task.TaskDefinition;
 import org.camunda.bpm.engine.impl.util.ReflectUtil;
 import org.camunda.bpm.engine.impl.util.xml.Element;
@@ -58,13 +120,6 @@ import org.camunda.bpm.engine.impl.util.xml.Parse;
 import org.camunda.bpm.engine.impl.variable.VariableDeclaration;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
 
-import java.io.InputStream;
-import java.io.StringReader;
-import java.net.URL;
-import java.text.StringCharacterIterator;
-import java.util.*;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * Specific parsing of one BPMN 2.0 XML file, created by the {@link BpmnParser}.
@@ -1877,9 +1932,11 @@ public class BpmnParse extends Parse {
     parseAsynchronousContinuation(userTaskElement, activity);
 
     TaskDefinition taskDefinition = parseTaskDefinition(userTaskElement, activity.getId(), (ProcessDefinitionEntity) scope.getProcessDefinition());
+    TaskDecorator taskDecorator = new TaskDecorator(taskDefinition, expressionManager);
 
-    UserTaskActivityBehavior userTaskActivity = new UserTaskActivityBehavior(expressionManager, taskDefinition);
+    UserTaskActivityBehavior userTaskActivity = new UserTaskActivityBehavior(taskDecorator);
     activity.setActivityBehavior(userTaskActivity);
+//    UserTaskActivityBehavior userTaskActivity = new UserTaskActivityBehavior(expressionManager, taskDefinition);
 
     parseProperties(userTaskElement, activity);
     parseExecutionListenersOnScope(userTaskElement, activity);
@@ -1904,6 +1961,12 @@ public class BpmnParse extends Parse {
 
     taskDefinition.setKey(taskDefinitionKey);
     processDefinition.getTaskDefinitions().put(taskDefinitionKey, taskDefinition);
+
+    String formKeyAttribute = taskElement.attributeNS(BpmnParser.ACTIVITI_BPMN_EXTENSIONS_NS, "formKey");
+
+    if (formKeyAttribute != null) {
+      taskDefinition.setFormKey(expressionManager.createExpression(formKeyAttribute));
+    }
 
     String name = taskElement.attribute("name");
     if (name != null) {

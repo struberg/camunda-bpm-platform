@@ -16,6 +16,7 @@ import org.camunda.bpm.engine.CaseService;
 import org.camunda.bpm.engine.impl.ServiceImpl;
 import org.camunda.bpm.engine.impl.cmmn.entity.runtime.CaseExecutionQueryImpl;
 import org.camunda.bpm.engine.impl.cmmn.entity.runtime.CaseInstanceQueryImpl;
+import org.camunda.bpm.engine.runtime.CaseExecutionCommandBuilder;
 import org.camunda.bpm.engine.runtime.CaseExecutionQuery;
 import org.camunda.bpm.engine.runtime.CaseInstanceBuilder;
 import org.camunda.bpm.engine.runtime.CaseInstanceQuery;
@@ -40,6 +41,10 @@ public class CaseServiceImpl extends ServiceImpl implements CaseService {
 
   public CaseExecutionQuery createCaseExecutionQuery() {
     return new CaseExecutionQueryImpl(commandExecutor);
+  }
+
+  public CaseExecutionCommandBuilder withCaseExecution(String caseExecutionId) {
+    return new CaseExecutionCommandBuilderImpl(commandExecutor, caseExecutionId);
   }
 
 }

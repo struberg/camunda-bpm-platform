@@ -12,19 +12,24 @@
  */
 package org.camunda.bpm.engine;
 
+import org.camunda.bpm.engine.runtime.CaseExecution;
+import org.camunda.bpm.engine.runtime.CaseExecutionCommandBuilder;
 import org.camunda.bpm.engine.runtime.CaseExecutionQuery;
 import org.camunda.bpm.engine.runtime.CaseInstance;
 import org.camunda.bpm.engine.runtime.CaseInstanceBuilder;
 import org.camunda.bpm.engine.runtime.CaseInstanceQuery;
 
 /**
+ * Service which provides access to {@link CaseInstance case instances}
+ * and {@link CaseExecution case executions}.
+ *
  * @author Roman Smirnov
  *
  */
 public interface CaseService {
 
   /**
-   * Define a {@link CaseInstance} using a fluent builder.
+   * <p>Define a {@link CaseInstance} using a fluent builder.</p>
    *
    * @param caseDefinitionKey The key of case definition to create a new case instance in
    * the latest version of the case definition with the given key, cannot be null.
@@ -34,9 +39,10 @@ public interface CaseService {
   CaseInstanceBuilder createCaseInstanceByKey(String caseDefinitionKey);
 
   /**
-   * Define a {@link CaseInstance} using a fluent builder.
+   * <p>Define a {@link CaseInstance} using a fluent builder.</p>
    *
-   *Starts a new case instance in the exactly specified version of the case definition with the given id.
+   * <p>Starts a new case instance in the exactly specified version of the case definition
+   * with the given id.</p>
    *
    * @param caseDefinitionId The id of case definition to create a new case instance in
    * the exactly specified version of the case definition with the given id, cannot be null.
@@ -46,13 +52,24 @@ public interface CaseService {
   CaseInstanceBuilder createCaseInstanceById(String caseDefinitionId);
 
   /**
-   * Creates a new {@link CaseInstanceQuery} instance, that can be used
-   * to query case instances.
+   * <p>Creates a new {@link CaseInstanceQuery} instance, that can be used
+   * to query case instances.</p>
    */
   CaseInstanceQuery createCaseInstanceQuery();
 
-  /** Creates a new {@link CaseExecutionQuery} instance,
-   * that can be used to query the executions and case instances. */
+  /**
+   * <p>Creates a new {@link CaseExecutionQuery} instance,
+   * that can be used to query the executions and case instances.</p>
+   */
   CaseExecutionQuery createCaseExecutionQuery();
 
+  /**
+   * <p>Define a command to be executed for a {@link CaseExecution} using a fluent builder.</p>
+   *
+   * @param caseExecutionId The id of a case execution to define a command for it.
+   *
+   * @return a {@link CaseExecutionCommandBuilder fluent builder} for defining a command
+   *         for a case execution
+   */
+  CaseExecutionCommandBuilder withCaseExecution(String caseExecutionId);
 }
